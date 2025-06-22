@@ -1,0 +1,34 @@
+# playbooks/provision_server.yml
+---
+- name: "Provision & Configure Server: {{ target_server }}"
+  hosts: localhost
+  gather_facts: no
+  vars:
+    # These paths are now defined relative to the playbook's execution
+    public_repo_path: "../homelab"
+    private_repo_path: "../homelab-private"
+
+  tasks:
+    - name: "Load server definitions and secrets"
+      ansible.builtin.include_vars:
+        dir: "{{ private_repo_path }}/{{ target_server }}/config"
+        name: server_secrets
+    - ansible.builtin.include_vars:
+        dir: "{{ public_repo_path }}/{{ target_server }}/config"
+        name: server_config
+
+    - name: "Create LXC container on Proxmox if it doesn't exist"
+      community.general.proxmox:
+        api_user: "{{ server_secrets.proxmox_api_user }}"
+        api_token_id: "{{ server_secrets.proxmox_api_token_id }}"
+        api_token_secret: "{{ server_secrets.proxmox_api_token_secret }}"
+        api_host: "{{ server_config.proxmox.node }}"
+        # ... all other proxmox parameters from our previous discussion ...
+        state: present
+      register: proxmox_lxc
+
+    - name: "Add new LXC to in-memory inventory and wait for it"
+      # ... (add_host and wait_for_connection tasks as designed before) ...
+
+    - name: "Apply roles and sync files"
+      # ... (The rest of the playbook delegating tasks to the new server) ...

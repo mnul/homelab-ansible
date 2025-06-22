@@ -1,0 +1,18 @@
+# playbooks/update_all.yml
+---
+- name: "Update All Servers"
+  hosts: all
+  become: yes
+  gather_facts: yes
+  vars:
+    public_repo_path: "../homelab"
+    private_repo_path: "../homelab-private"
+
+  roles:
+    - role: common
+    - role: docker
+      when: "'docker_hosts' in group_names"
+
+  tasks:
+    - name: "Sync public and private file structures"
+      # ... (The two synchronize tasks using 'inventory_hostname' as designed before) ...

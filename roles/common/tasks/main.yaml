@@ -1,0 +1,12 @@
+---
+- name: Run package management tasks
+  ansible.builtin.include_tasks: packages.yaml
+
+- name: Run user setup tasks
+  ansible.builtin.include_tasks: users.yaml
+
+- name: Run ssh tasks
+  ansible.builtin.include_tasks: ssh.yaml
+
+- name: Run customization tasks
+  ansible.builtin.include_tasks: customization.yaml
