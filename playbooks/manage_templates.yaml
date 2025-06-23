@@ -1,0 +1,72 @@
+---
+# This playbook ensures the latest versions of specified LXC templates are downloaded.
+# It can also clean up old versions of the same template.
+#
+# How to Run:
+# ansible-playbook playbooks/manage_templates.yaml
+
+- name: Manage Proxmox LXC Templates
+  hosts: localhost
+  gather_facts: no
+  vars:
+    # --- Define the templates you want to maintain ---
+    # The playbook will find the latest version of each of these base names.
+    desired_templates:
+      - "debian-12-standard"
+      - "ubuntu-24.04-standard"
+
+    # Set to true to automatically delete older versions of the templates listed above.
+    cleanup_old_versions: true
+
+    # --- Proxmox Connection Details ---
+    proxmox_node: "argon"
+    proxmox_storage: "local"
+
+  tasks:
+    - name: "Load Proxmox credentials from vault"
+      ansible.builtin.include_vars:
+        file: ../homelab-private/group_vars/all/vault.yaml
+
+    - name: "Update the list of available templates from Proxmox"
+      ansible.builtin.command: pveam update
+      changed_when: false
+      delegate_to: "{{ proxmox_node }}"
+
+    - name: "Get list of ALL available templates on the server"
+      ansible.builtin.command: "pveam available --output-format json"
+      register: pve_available_templates
+      changed_when: false
+      delegate_to: "{{ proxmox_node }}"
+
+    - name: "Get list of LOCAL templates on storage '{{ proxmox_storage }}'"
+      ansible.builtin.command: "pveam list {{ proxmox_storage }} --output-format json"
+      register: pve_local_templates
+      changed_when: false
+      delegate_to: "{{ proxmox_node }}"
+
+    - name: "Ensure latest templates are present and cleanup old ones"
+      loop: "{{ desired_templates }}"
+      loop_control:
+        loop_var: template_base_name
+      block:
+        # This task finds the full filename of the latest available version
+        - name: "Find the latest version of '{{ template_base_name }}'"
+          ansible.builtin.set_fact:
+            latest_template: "{{ (pve_available_templates.stdout | from_json | selectattr('template', 'match', template_base_name) | list | first) }}"
+
+        - name: "Download latest template '{{ latest_template.template }}' if not present"
+          ansible.builtin.command: "pveam download {{ proxmox_storage }} {{ latest_template.template }}"
+          # Only run if the latest template is not found in the list of local templates
+          when: "latest_template.template not in (pve_local_templates.stdout | from_json | map(attribute='volid') | list)"
+          delegate_to: "{{ proxmox_node }}"
+
+        - name: "Find and remove old local versions of '{{ template_base_name }}'"
+          when: cleanup_old_versions
+          vars:
+            # Find all local templates that match the base name but are NOT the latest version
+            old_templates: "{{ (pve_local_templates.stdout | from_json | selectattr('volid', 'match', template_base_name) | rejectattr('volid', 'equalto', latest_template.template) | map(attribute='volid') | list) }}"
+          ansible.builtin.command: "pveam remove {{ item }}"
+          loop: "{{ old_templates }}"
+          loop_control:
+            label: "{{ item }}"
+          delegate_to: "{{ proxmox_node }}"
