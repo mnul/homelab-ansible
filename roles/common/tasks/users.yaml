@@ -1,0 +1,22 @@
+---
+- name: Create ansible user for automation
+  ansible.builtin.user:
+    name: ansible
+    system: yes
+    shell: /bin/bash
+
+- name: Create primary admin user
+  ansible.builtin.user:
+    name: manu
+    append: yes
+    groups: sudo
+    shell: /bin/bash
+    password: '$6$zO6S5.X2x7wPmrSm$cO.eA75JMlSMfq8I7EN3aN12f/RUNaQn.ySfWcRMhNZQhu1YKqiywkf6LExPGcW2w6TSH1MXyuXEDUFngAdKb.'
+
+- name: Copy sudoers file for ansible user
+  ansible.builtin.copy:
+    src: sudoers_ansible
+    dest: /etc/sudoers.d/ansible
+    owner: root
+    group: root
+    mode: '0440'

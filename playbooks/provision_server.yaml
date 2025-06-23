@@ -1,34 +1,70 @@
-# playbooks/provision_server.yml
 ---
+# Run with: ansible-playbook playbooks/provision_server.yaml -e "target_server=myserver"
 - name: "Provision & Configure Server: {{ target_server }}"
   hosts: localhost
   gather_facts: no
   vars:
-    # These paths are now defined relative to the playbook's execution
     public_repo_path: "../homelab"
     private_repo_path: "../homelab-private"
 
   tasks:
-    - name: "Load server definitions and secrets"
+    - name: "STEP 1: Load server definition and secret files"
       ansible.builtin.include_vars:
-        dir: "{{ private_repo_path }}/{{ target_server }}/config"
-        name: server_secrets
-    - ansible.builtin.include_vars:
-        dir: "{{ public_repo_path }}/{{ target_server }}/config"
+        file: "{{ public_repo_path }}/{{ target_server }}/config/main.yaml"
         name: server_config
+    - ansible.builtin.include_vars:
+        file: "{{ private_repo_path }}/{{ target_server }}/config/vault.yaml"
+        name: server_secrets
 
-    - name: "Create LXC container on Proxmox if it doesn't exist"
+    - name: "STEP 2: Create LXC container on Proxmox if it doesn't exist"
       community.general.proxmox:
         api_user: "{{ server_secrets.proxmox_api_user }}"
         api_token_id: "{{ server_secrets.proxmox_api_token_id }}"
         api_token_secret: "{{ server_secrets.proxmox_api_token_secret }}"
         api_host: "{{ server_config.proxmox.node }}"
-        # ... all other proxmox parameters from our previous discussion ...
+        node: "{{ server_config.proxmox.node }}"
+        vmid: "{{ server_config.proxmox.vmid }}"
+        hostname: "{{ server_config.proxmox.hostname }}"
+        password: "{{ server_secrets.proxmox_root_password }}"
+        cores: "{{ server_config.proxmox.cores }}"
+        memory: "{{ server_config.proxmox.memory }}"
+        storage: "{{ server_config.proxmox.storage }}"
+        ostemplate: "{{ server_config.proxmox.ostemplate }}"
+        netif: "{{ server_config.proxmox.netif }}"
         state: present
       register: proxmox_lxc
 
-    - name: "Add new LXC to in-memory inventory and wait for it"
-      # ... (add_host and wait_for_connection tasks as designed before) ...
+    - name: "Add new server to in-memory inventory"
+      ansible.builtin.add_host:
+        name: "{{ target_server }}"
+        ansible_host: "{{ proxmox_lxc.ip_addresses.eth0.ipv4 }}"
+      when: proxmox_lxc.changed
 
-    - name: "Apply roles and sync files"
-      # ... (The rest of the playbook delegating tasks to the new server) ...
+    - name: "Wait for SSH to be available on the new server"
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        timeout: 300
+      delegate_to: "{{ target_server }}"
+
+    - name: "STEP 3: Apply baseline and software roles"
+      ansible.builtin.import_role:
+        name: common
+      delegate_to: "{{ target_server }}"
+    - ansible.builtin.import_role:
+        name: "{{ item }}"
+      loop: "{{ server_config.roles | default([]) }}"
+      delegate_to: "{{ target_server }}"
+
+    - name: "STEP 4: Sync public file structure to server"
+      ansible.posix.synchronize:
+        src: "{{ public_repo_path }}/{{ target_server }}/files/"
+        dest: "/"
+        rsync_opts: ["--archive", "--delete", "--verbose"]
+      delegate_to: "{{ target_server }}"
+
+    - name: "STEP 5: Sync private file structure to server (overwrite examples)"
+      ansible.posix.synchronize:
+        src: "{{ private_repo_path }}/{{ target_server }}/files/"
+        dest: "/"
+        rsync_opts: ["--archive", "--verbose"]
+      delegate_to: "{{ target_server }}"

@@ -1,5 +1,5 @@
-# playbooks/update_all.yml
 ---
+# Run with: ansible-playbook playbooks/update_all.yaml
 - name: "Update All Servers"
   hosts: all
   become: yes
@@ -8,11 +8,28 @@
     public_repo_path: "../homelab"
     private_repo_path: "../homelab-private"
 
+  pre_tasks:
+    - name: Load server definitions
+      ansible.builtin.include_vars:
+        file: "{{ public_repo_path }}/{{ inventory_hostname }}/config/main.yaml"
+        name: server_config
+
   roles:
     - role: common
-    - role: docker
-      when: "'docker_hosts' in group_names"
+    - role: "{{ item }}"
+      loop: "{{ server_config.roles | default([]) }}"
 
   tasks:
-    - name: "Sync public and private file structures"
-      # ... (The two synchronize tasks using 'inventory_hostname' as designed before) ...
+    - name: "Sync public file structure"
+      ansible.posix.synchronize:
+        src: "{{ public_repo_path }}/{{ inventory_hostname }}/files/"
+        dest: "/"
+        rsync_opts: ["--archive", "--delete"]
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: "Sync private file structure"
+      ansible.posix.synchronize:
+        src: "{{ private_repo_path }}/{{ inventory_hostname }}/files/"
+        dest: "/"
+        rsync_opts: ["--archive"]
+      delegate_to: "{{ inventory_hostname }}"

@@ -1,0 +1,24 @@
+---
+- name: "Deploy .tmux.conf for root"
+  ansible.builtin.copy:
+    src: .tmux.conf
+    dest: /root/.tmux.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: "Deploy .tmux.conf for manu"
+  ansible.builtin.copy:
+    src: .tmux.conf
+    dest: /home/manu/.tmux.conf
+    owner: manu
+    group: manu
+    mode: '0644'
+
+- name: "Set dynamic MOTD"
+  ansible.builtin.template:
+    src: motd.j2
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: '0644'

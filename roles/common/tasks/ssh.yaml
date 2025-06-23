@@ -1,0 +1,14 @@
+---
+- name: "Set authorized key for ansible user"
+  ansible.posix.authorized_key:
+    user: ansible
+    state: present
+    key: "{{ lookup('file', 'files/ansible.pub') }}"
+    manage_dir: yes
+
+- name: "Set authorized key for manu user"
+  ansible.posix.authorized_key:
+    user: manu
+    state: present
+    key: "{{ lookup('file', 'files/manu.pub') }}"
+    manage_dir: yes
