@@ -1,4 +1,3 @@
-# requirements.yaml
-
+# This file manages external Ansible collections from Ansible Galaxy.
 collections:
   - name: community.general

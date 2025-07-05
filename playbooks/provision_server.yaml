@@ -1,36 +1,50 @@
 ---
-# Run with: ansible-playbook playbooks/provision_server.yaml -e "target_server=myserver"
+# This playbook creates or updates a single server from start to finish.
+# Run with: ansible-playbook playbooks/provision_server.yaml -e "target_server=mazanoke"
+
 - name: "Provision & Configure Server: {{ target_server }}"
   hosts: localhost
-  gather_facts: no
+  gather_facts: false
   vars:
     public_repo_path: "../homelab"
     private_repo_path: "../homelab-private"
 
   tasks:
-    - name: "STEP 1: Load server definition and secret files"
+    - name: "STEP 1: Load server definitions and secrets"
       ansible.builtin.include_vars:
         file: "{{ public_repo_path }}/{{ target_server }}/config/main.yaml"
         name: server_config
     - ansible.builtin.include_vars:
         file: "{{ private_repo_path }}/{{ target_server }}/config/vault.yaml"
         name: server_secrets
+    - ansible.builtin.include_vars:
+        file: "{{ private_repo_path }}/group_vars/all/main.yaml"
+    - ansible.builtin.include_vars:
+        file: "{{ private_repo_path }}/group_vars/all/vault.yaml"
 
-    - name: "STEP 2: Create LXC container on Proxmox if it doesn't exist"
+    - name: "STEP 2: Find and prepare LXC template on Proxmox"
+      ansible.builtin.command: "pveam available --output-format json"
+      register: pve_available_templates
+      changed_when: false
+      delegate_to: "{{ proxmox_host }}"
+    - ansible.builtin.set_fact:
+        latest_template_path: "{{ (pve_available_templates.stdout | from_json | selectattr('template', 'match', server_config.proxmox.template_short_name) | list | first).template }}"
+    - ansible.builtin.command: "pveam download {{ proxmox_template_storage }} {{ latest_template_path }}"
+      delegate_to: "{{ proxmox_host }}"
+
+    - name: "STEP 3: Create LXC container"
       community.general.proxmox:
-        api_user: "{{ server_secrets.proxmox_api_user }}"
-        api_token_id: "{{ server_secrets.proxmox_api_token_id }}"
-        api_token_secret: "{{ server_secrets.proxmox_api_token_secret }}"
-        api_host: "{{ server_config.proxmox.node }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        api_host: "{{ proxmox_host }}"
         node: "{{ server_config.proxmox.node }}"
         vmid: "{{ server_config.proxmox.vmid }}"
         hostname: "{{ server_config.proxmox.hostname }}"
-        password: "{{ server_secrets.proxmox_root_password }}"
-        cores: "{{ server_config.proxmox.cores }}"
-        memory: "{{ server_config.proxmox.memory }}"
-        storage: "{{ server_config.proxmox.storage }}"
-        ostemplate: "{{ server_config.proxmox.ostemplate }}"
+        password: "{{ proxmox_root_password }}"
+        ostemplate: "{{ proxmox_template_storage }}:vztmpl/{{ latest_template_path }}"
         netif: "{{ server_config.proxmox.netif }}"
+        rootfs: "{{ server_config.proxmox.rootfs }}"
         state: present
       register: proxmox_lxc
 
@@ -40,13 +54,13 @@
         ansible_host: "{{ proxmox_lxc.ip_addresses.eth0.ipv4 }}"
       when: proxmox_lxc.changed
 
-    - name: "Wait for SSH to be available on the new server"
+    - name: "Wait for SSH on the new server"
       ansible.builtin.wait_for_connection:
         delay: 5
         timeout: 300
       delegate_to: "{{ target_server }}"
 
-    - name: "STEP 3: Apply baseline and software roles"
+    - name: "STEP 4: Apply baseline and software roles"
       ansible.builtin.import_role:
         name: common
       delegate_to: "{{ target_server }}"
@@ -55,14 +69,14 @@
       loop: "{{ server_config.roles | default([]) }}"
       delegate_to: "{{ target_server }}"
 
-    - name: "STEP 4: Sync public file structure to server"
+    - name: "STEP 5: Sync public file structure to server"
       ansible.posix.synchronize:
         src: "{{ public_repo_path }}/{{ target_server }}/files/"
         dest: "/"
         rsync_opts: ["--archive", "--delete", "--verbose"]
       delegate_to: "{{ target_server }}"
 
-    - name: "STEP 5: Sync private file structure to server (overwrite examples)"
+    - name: "STEP 6: Sync private file structure to server"
       ansible.posix.synchronize:
         src: "{{ private_repo_path }}/{{ target_server }}/files/"
         dest: "/"

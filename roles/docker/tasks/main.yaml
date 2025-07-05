@@ -1,0 +1,4 @@
+---
+- name: "Placeholder for Docker installation"
+  ansible.builtin.debug:
+    msg: "This role would install Docker and Docker Compose."
