@@ -60,13 +60,16 @@
         timeout: 300
       delegate_to: "{{ target_server }}"
 
-    - name: "STEP 4: Apply baseline and software roles"
-      ansible.builtin.import_role:
-        name: common
-      delegate_to: "{{ target_server }}"
-    - ansible.builtin.include_role: # <-- CORRECTED FROM import_role
-        name: "{{ item }}"
-      loop: "{{ server_config.roles | default([]) }}"
+    - name: "STEP 4: Apply roles on target server"
+      block:
+        - name: Apply baseline common role
+          ansible.builtin.import_role:
+            name: common
+
+        - name: Apply software roles
+          ansible.builtin.include_role:
+            name: "{{ item }}"
+          loop: "{{ server_config.roles | default([]) }}"
       delegate_to: "{{ target_server }}"
 
     - name: "STEP 5: Sync public file structure to server"
