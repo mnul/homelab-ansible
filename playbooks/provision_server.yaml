@@ -3,10 +3,10 @@
   hosts: localhost
   gather_facts: false
   vars:
-    # The public path still points to the 'role' downloaded by ansible-galaxy.
+    # The public path points to the 'role' downloaded by ansible-galaxy.
     public_repo_path: "{{ playbook_dir | dirname }}/roles/homelab_data"
-    # The private path is no longer needed here, Ansible finds it automatically.
-    private_repo_path: "{{ inventory_dir }}" # We keep this for the synchronize task
+    # Use Ansible's 'inventory_dir' magic variable to reliably find the private repo.
+    private_repo_path: "{{ inventory_dir }}"
 
   tasks:
     - name: "STEP 1: Load PUBLIC server definition"
