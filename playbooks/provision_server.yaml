@@ -64,7 +64,7 @@
       ansible.builtin.import_role:
         name: common
       delegate_to: "{{ target_server }}"
-    - ansible.builtin.import_role:
+    - ansible.builtin.include_role: # <-- CORRECTED FROM import_role
         name: "{{ item }}"
       loop: "{{ server_config.roles | default([]) }}"
       delegate_to: "{{ target_server }}"
