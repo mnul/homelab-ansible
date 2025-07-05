@@ -1,3 +1,9 @@
 # This file manages external Ansible collections from Ansible Galaxy.
 collections:
   - name: community.general
+
+roles:
+  - name: homelab_data # This is a local alias for the repository
+    src: git@github.com:mnul/homelab.git 
+    scm: git
+    version: dev # Or 'main'
