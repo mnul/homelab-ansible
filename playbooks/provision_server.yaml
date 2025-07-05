@@ -3,8 +3,9 @@
   hosts: localhost
   gather_facts: false
   vars:
+    # These paths are now reliable because ansible-galaxy places the repos in predictable locations.
     public_repo_path: "{{ playbook_dir | dirname }}/roles/homelab_data"
-    private_repo_path: "{{ lookup('env', 'SEMAPHORE_INVENTORY_PATH') | default(playbook_dir ~ '/../../homelab-private', true) }}"
+    private_repo_path: "../homelab-private" # This path is relative to the ansible.cfg inventory setting
 
   tasks:
     - name: "STEP 1: Load server definitions and secrets"
