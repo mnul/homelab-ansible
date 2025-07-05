@@ -1,18 +1,14 @@
 ---
-# This playbook creates or updates a single server from start to finish.
-# Run with: ansible-playbook playbooks/provision_server.yaml -e "target_server=mazanoke"
-
 - name: "Provision & Configure Server: {{ target_server }}"
   hosts: localhost
   gather_facts: false
   vars:
-    # Construct robust paths based on the playbook's location.
-    # This assumes Semaphore checks out the repos as siblings.
-    project_root: "{{ playbook_dir | dirname | dirname }}"
-    public_repo_path: "{{ project_root }}/homelab"
-    private_repo_path: "{{ project_root }}/homelab-private"
+    # These paths are now reliable because our script created them.
+    public_repo_path: "../homelab"
+    private_repo_path: "../homelab-private"
 
   tasks:
+    # ... (The rest of the playbook remains exactly the same as the last version) ...
     - name: "STEP 1: Load server definitions and secrets"
       ansible.builtin.include_vars:
         file: "{{ public_repo_path }}/{{ target_server }}/config/main.yaml"

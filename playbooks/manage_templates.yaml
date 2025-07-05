@@ -7,7 +7,7 @@
 
 - name: Manage Proxmox LXC Templates
   hosts: localhost
-  gather_facts: no
+  gather_facts: false
   vars:
     # --- Define the templates you want to maintain ---
     # The playbook will find the latest version of each of these base names.
