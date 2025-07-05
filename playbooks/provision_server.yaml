@@ -1,6 +1,6 @@
 ---
 - name: "Provision & Configure Server: {{ target_server }}"
-  hosts: localhost
+  hosts: all
   gather_facts: false
   vars:
     public_repo_path: "{{ playbook_dir | dirname }}/roles/homelab_data"
@@ -11,18 +11,22 @@
       ansible.builtin.include_vars:
         file: "{{ public_repo_path }}/{{ target_server }}/config/main.yaml"
         name: server_config
-    # NOTE: All private variables are now loaded automatically by Ansible
-    # because of the correct inventory and host_vars/group_vars structure.
+      delegate_to: localhost
+      run_once: true
 
     - name: "STEP 2: Find and prepare LXC template on Proxmox"
-      ansible.builtin.command: "pveam available --output-format json"
-      register: pve_available_templates
-      changed_when: false
+      block:
+        - name: "Find latest template version"
+          ansible.builtin.command: "pveam available --output-format json"
+          register: pve_available_templates
+          changed_when: false
+        - name: "Set latest template path fact"
+          ansible.builtin.set_fact:
+            latest_template_path: "{{ (pve_available_templates.stdout | from_json | selectattr('template', 'match', server_config.proxmox.template_short_name) | list | first).template }}"
+        - name: "Download template if needed"
+          ansible.builtin.command: "pveam download {{ proxmox_template_storage }} {{ latest_template_path }}"
       delegate_to: "{{ proxmox_host }}"
-    - ansible.builtin.set_fact:
-        latest_template_path: "{{ (pve_available_templates.stdout | from_json | selectattr('template', 'match', server_config.proxmox.template_short_name) | list | first).template }}"
-    - ansible.builtin.command: "pveam download {{ proxmox_template_storage }} {{ latest_template_path }}"
-      delegate_to: "{{ proxmox_host }}"
+      run_once: true
 
     - name: "STEP 3: Create LXC container"
       community.proxmox.proxmox:
@@ -39,18 +43,23 @@
         rootfs: "{{ server_config.proxmox.rootfs }}"
         state: present
       register: proxmox_lxc
+      delegate_to: localhost
+      run_once: true
 
     - name: "Add new server to in-memory inventory"
       ansible.builtin.add_host:
         name: "{{ target_server }}"
         ansible_host: "{{ proxmox_lxc.ip_addresses.eth0.ipv4 }}"
       when: proxmox_lxc.changed
+      delegate_to: localhost
+      run_once: true
 
     - name: "Wait for SSH on the new server"
       ansible.builtin.wait_for_connection:
         delay: 5
         timeout: 300
       delegate_to: "{{ target_server }}"
+      run_once: true
 
     - name: "STEP 4: Apply roles on target server"
       block:
@@ -63,6 +72,7 @@
             name: "{{ item }}"
           loop: "{{ server_config.roles | default([]) }}"
       delegate_to: "{{ target_server }}"
+      run_once: true
 
     - name: "STEP 5: Sync public file structure to server"
       ansible.posix.synchronize:
@@ -70,6 +80,7 @@
         dest: "/"
         rsync_opts: ["--archive", "--delete", "--verbose"]
       delegate_to: "{{ target_server }}"
+      run_once: true
 
     - name: "STEP 6: Sync private file structure to server"
       ansible.posix.synchronize:
@@ -77,3 +88,4 @@
         dest: "/"
         rsync_opts: ["--archive", "--verbose"]
       delegate_to: "{{ target_server }}"
+      run_once: true
