@@ -3,10 +3,11 @@
   hosts: localhost
   gather_facts: false
   vars:
-    # The public path now points to the 'role' downloaded by ansible-galaxy.
+    # The public path points to the 'role' downloaded by ansible-galaxy.
     public_repo_path: "{{ playbook_dir | dirname }}/roles/homelab_data"
-    # The private path still points to the sibling inventory repo checkout.
-    private_repo_path: "{{ playbook_dir | dirname | dirname }}/../homelab-private"
+    # The private path now uses the environment variable provided by Semaphore.
+    # We use a default for local testing.
+    private_repo_path: "{{ lookup('env', 'SEMAPHORE_INVENTORY_PATH') | default(playbook_dir ~ '/../../homelab-private', true) }}"
 
   tasks:
     - name: "STEP 1: Load server definitions and secrets"
