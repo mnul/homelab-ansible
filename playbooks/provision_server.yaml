@@ -3,9 +3,8 @@
   hosts: localhost
   gather_facts: false
   vars:
-    # These paths are now reliable because ansible-galaxy places the repos in predictable locations.
     public_repo_path: "{{ playbook_dir | dirname }}/roles/homelab_data"
-    private_repo_path: "../homelab-private" # This path is relative to the ansible.cfg inventory setting
+    private_repo_path: "../homelab-private"
 
   tasks:
     - name: "STEP 1: Load server definitions and secrets"
@@ -31,7 +30,7 @@
       delegate_to: "{{ proxmox_host }}"
 
     - name: "STEP 3: Create LXC container"
-      community.general.proxmox:
+      community.proxmox.proxmox: # <-- CORRECTED MODULE NAME
         api_user: "{{ proxmox_api_user }}"
         api_token_id: "{{ proxmox_api_token_id }}"
         api_token_secret: "{{ proxmox_api_token_secret }}"
