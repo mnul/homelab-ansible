@@ -6,8 +6,11 @@
   hosts: localhost
   gather_facts: false
   vars:
-    public_repo_path: "../homelab"
-    private_repo_path: "../homelab-private"
+    # Construct robust paths based on the playbook's location.
+    # This assumes Semaphore checks out the repos as siblings.
+    project_root: "{{ playbook_dir | dirname | dirname }}"
+    public_repo_path: "{{ project_root }}/homelab"
+    private_repo_path: "{{ project_root }}/homelab-private"
 
   tasks:
     - name: "STEP 1: Load server definitions and secrets"
