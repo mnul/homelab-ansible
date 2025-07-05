@@ -4,9 +4,16 @@
   gather_facts: false
   vars:
     public_repo_path: "{{ playbook_dir | dirname }}/roles/homelab_data"
-    private_repo_path: "../homelab-private"
+    private_repo_path: "{{ lookup('env', 'SEMAPHORE_INVENTORY_PATH') | default(playbook_dir ~ '/../../homelab-private', true) }}"
 
   tasks:
+    - name: "DEBUG: Print environment and calculated paths"
+      ansible.builtin.debug:
+        msg:
+          - "SEMAPHORE_INVENTORY_PATH env var: {{ lookup('env', 'SEMAPHORE_INVENTORY_PATH') }}"
+          - "Calculated private_repo_path: {{ private_repo_path }}"
+          - "Calculated public_repo_path: {{ public_repo_path }}"
+
     - name: "STEP 1: Load server definitions and secrets"
       ansible.builtin.include_vars:
         file: "{{ public_repo_path }}/{{ target_server }}/config/main.yaml"
@@ -30,7 +37,7 @@
       delegate_to: "{{ proxmox_host }}"
 
     - name: "STEP 3: Create LXC container"
-      community.proxmox.proxmox: # <-- CORRECTED MODULE NAME
+      community.proxmox.proxmox:
         api_user: "{{ proxmox_api_user }}"
         api_token_id: "{{ proxmox_api_token_id }}"
         api_token_secret: "{{ proxmox_api_token_secret }}"
