@@ -5,8 +5,8 @@
   vars:
     # The public path points to the 'role' downloaded by ansible-galaxy.
     public_repo_path: "{{ playbook_dir | dirname }}/roles/homelab_data"
-    # Use Ansible's 'inventory_dir' magic variable to reliably find the private repo.
-    private_repo_path: "{{ inventory_dir }}"
+    # Use the directory of the inventory file env var provided by Semaphore.
+    private_repo_path: "{{ lookup('env', 'SEMAPHORE_INVENTORY_FILE') | dirname }}"
 
   tasks:
     - name: "STEP 1: Load server definitions and secrets"
