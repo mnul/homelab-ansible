@@ -2,14 +2,24 @@
 - name: "Provision & Configure Server: {{ target_server }}"
   hosts: localhost
   gather_facts: false
-  vars:
-    # The public path points to the 'role' downloaded by ansible-galaxy.
-    public_repo_path: "{{ playbook_dir | dirname }}/roles/homelab_data"
-    # Use the directory of the inventory file env var provided by Semaphore.
-    private_repo_path: "{{ lookup('env', 'SEMAPHORE_INVENTORY_FILE') | dirname }}"
 
   tasks:
+    - name: "DEBUG: Show the directory structure"
+      ansible.builtin.command: ls -laR /opt/semaphore/tmp/
+      register: directory_listing
+      changed_when: false
+
+    - name: "Print the directory listing"
+      ansible.builtin.debug:
+        var: directory_listing.stdout_lines
+
+    # The rest of the playbook will fail, but the log from the task above
+    # will give us the correct path to use for 'private_repo_path'.
+
     - name: "STEP 1: Load server definitions and secrets"
+      vars:
+        public_repo_path: "{{ playbook_dir | dirname }}/roles/homelab_data"
+        private_repo_path: "/path/to/be/determined/from/debug/output" # Placeholder
       ansible.builtin.include_vars:
         file: "{{ public_repo_path }}/{{ target_server }}/config/main.yaml"
         name: server_config
@@ -19,7 +29,6 @@
     - ansible.builtin.include_vars:
         file: "{{ private_repo_path }}/group_vars/all/main.yaml"
     - ansible.builtin.include_vars:
-        file: "{{ private_repo_path }}/group_vars/all/vault.yaml"
 
     - name: "STEP 2: Find and prepare LXC template on Proxmox"
       ansible.builtin.command: "pveam available --output-format json"
